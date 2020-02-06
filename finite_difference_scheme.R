@@ -60,17 +60,15 @@ for (i in 1:length(b)) {
 }
 
 # Then, consider boundary condition
-V_c[1,] = max(sum(S0 * omega * exp((r - 0.5 * sigma ^ 2) * T + sigma * b[1])) -
-                  strike, 0)
-V_c[J + 1,] = max(sum(S0 * omega * exp((r - 0.5 * sigma ^ 2) * T + sigma * b[J +
-                                                                                 1])) - strike, 0)
+V_c[1,] = max(sum(S0 * omega * exp((r - 0.5 * sigma ^ 2) * T + sigma * b[1])) - strike, 0)
+V_c[J + 1,] = max(sum(S0 * omega * exp((r - 0.5 * sigma ^ 2) * T + sigma * b[J + 1])) - strike, 0)
 
 # Finite difference scheme
 for (k in 1:n) {
     for (j in 2:J) {
-        V_c[j, k + 1] = 0.5 * delta_t / delta_b ^ 2 * V_c[j - 1, k] + (1 - r * delta_t -
-                                                                           delta_t / delta_b ^ 2) * V_c[j, k] + 0.5 * delta_t / delta_b ^ 2 * V_c[j +
-                                                                                                                                                      1, k]
+        V_c[j, k + 1] = 0.5 * delta_t / delta_b ^ 2 * V_c[j - 1, k] + 
+            (1 - r * delta_t - delta_t / delta_b ^ 2) * V_c[j, k] + 
+            0.5 * delta_t / delta_b ^ 2 * V_c[j + 1, k]
     }
 }
 
@@ -84,28 +82,31 @@ for (i in 1:4) {
     sum = sum + sum(sigma[i] * sigma)
 }
 nu = sum(S * cor * sigma) / sqrt((S[1] ^ 2 * cor * sum))
+
 # Get new sigma (See Daniel's paper(Page 5, Equation 2.7))
 new_sigma = nu * sigma
+
 # Start to generate lower bound
 V_l = matrix(NA, length(b), length(time))
+
 # Consider final condition
 for (i in 1:length(b)) {
     V_l[i, 1] = max(sum(S0 * omega * exp((
         r - 0.5 * new_sigma ^ 2
     ) * T + new_sigma * b[i])) - strike, 0)
 }
-# Consider boundary conditions
-V_l[1, ] = max(sum(S0 * omega * exp((r - 0.5 * new_sigma ^ 2) * T + new_sigma *
-                                        b[1])) - strike, 0)
-V_l[J + 1, ] = max(sum(S0 * omega * exp((r - 0.5 * new_sigma ^ 2) * T +
-                                            new_sigma * b[J + 1])) - strike, 0)
 
-# Finite difference schemes
+# Consider boundary conditions
+V_l[1, ] = max(sum(S0 * omega * exp((r - 0.5 * new_sigma ^ 2) * T + new_sigma * b[1])) - strike, 0)
+V_l[J + 1, ] = max(sum(S0 * omega * exp((r - 0.5 * new_sigma ^ 2) * T + new_sigma * b[J + 1])) - strike, 0)
+
+# Finite difference scheme
+s
 for (k in 1:n) {
     for (j in 2:J) {
-        V_l[j, k + 1] = 0.5 * delta_t / delta_b ^ 2 * V_l[j - 1, k] + (1 - r * delta_t -
-                                                                           delta_t / delta_b ^ 2) * V_l[j, k] + 0.5 * delta_t / delta_b ^ 2 * V_l[j +
-                                                                                                                                                      1, k]
+        V_l[j, k + 1] = 0.5 * delta_t / delta_b ^ 2 * V_l[j - 1, k] + 
+            (1 - r * delta_t - delta_t / delta_b ^ 2) * V_l[j, k] + 
+            0.5 * delta_t / delta_b ^ 2 * V_l[j + 1, k]
     }
 }
 
