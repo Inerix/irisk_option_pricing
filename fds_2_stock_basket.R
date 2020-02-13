@@ -99,16 +99,28 @@ for (i in 1:length(b_1)) {
 ds1 = delta_b_1 
 ds2 = delta_b_2
 
-for (t in 2:length(time)){
-    for (i in 1:length(b_1)) {
+for (t in 1:nstep_time){
+    for (i in 2:nstep_price) {
         s1_t = S_1 * exp((r - 0.5 * sigma[1] ^ 2) * (T - time[t]) + sigma[1] * b_1[i])
-
-        s1_thing = ((sigma[1] * weights[1] * s1_t) ^ 2) / 
-        for (j in 1:length(b_2)) {
+        s1_thing = ((sigma[1] * weights[1] * s1_t) ^ 2) / ds1 ^ 2
+        r_thing_1 = (r * delta_t * s1_t) / (2 * ds1) 
+        for (j in 2:nstep_price) {
             # can do this step in parllel
             s2_t = S_2 * exp((r - 0.5 * sigma[2] ^ 2) * (T - time[t]) + sigma[2] * b_2[j])
-            V[t, i, j] = 
-                V[t-1, i, j] * (1 - )
+            s2_thing = ((sigma[2] * weights[2] * s2_t) ^ 2) / ds2 ^ 2
+            r_thing_2 = (r * delta_t * s2_t) / (2 * ds2)
+            huge_thing = (sigma[1] * sigma[2] * cor * weights[1] * weights[2] * s1_t * s2_t * delta_t) / 
+                            (8 * delta_b_1 * delta_b_2)
+            V[t + 1, i, j] = 
+                V[t, i, j] * (1 - s1_thing + s2_thing - r * delta_t) + 
+                V[t, i + 1, j] * (r_thing_1 + s1_thing / 2) + 
+                V[t, i - 1, j] * (s1_thing / 2 - r_thing_1) + 
+                V[t, i, j + 1] * (r_thing_2 + s2_thing/2) + 
+                V[t, i, j - 1] * (s2_thing / 2 - r_thing_2) + 
+                V[t, i + 1, j + 1] * huge_thing - 
+                V[t, i - 1, j + 1] * huge_thing - 
+                V[t, i + 1, j - 1] * huge_thing +
+                V[t, i - 1, j - 1] * huge_thing
         }    
     }
 }
