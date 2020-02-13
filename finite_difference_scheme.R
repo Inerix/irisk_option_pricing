@@ -101,7 +101,6 @@ V_l[1, ] = max(sum(S0 * omega * exp((r - 0.5 * new_sigma ^ 2) * T + new_sigma * 
 V_l[J + 1, ] = max(sum(S0 * omega * exp((r - 0.5 * new_sigma ^ 2) * T + new_sigma * b[J + 1])) - strike, 0)
 
 # Finite difference scheme
-s
 for (k in 1:n) {
     for (j in 2:J) {
         V_l[j, k + 1] = 0.5 * delta_t / delta_b ^ 2 * V_l[j - 1, k] + 
