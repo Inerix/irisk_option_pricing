@@ -1,12 +1,13 @@
+rm(list = ls())
 library(doMC)
 library(foreach)
+source("fds_1_stock.R")
 
-rm(list = ls())
 # in previous FDS, considered stock price of 1 commonotonic price over 400 steps and
 # and considered price over 15,000 steps
 # in our case this lead to 2,400,000,000 obsercations
 
-# starting off with 100 * 100 * 3750 (37500000)
+# starting off with 100 * 100 * 3750 (37,500,000)
 
 nstep_time = 3750
 nstep_price = 100
@@ -29,19 +30,18 @@ weights = c(.5, .5)
 # Risk-free interest rate
 r = 0.01
 
-# convergence
-con = sqrt(2 * delta_t / (2 - r * delta_t))
-
-set.seed(321)
-delta_b_1 = con / runif(1)
-
+# Time vector increments
 time = seq(0, T, delta_t)
 
-b_1 = seq(-nstep_price/2 * delta_b_1, nstep_price/2 * delta_b_1, delta_b_1)
+# delta_b_1 represents the total+- in stock 1
+delta_b_1 = 30
 
-delta_b_2 = con / runif(1)
+b_1 = seq(S_1 - delta_b_1/2, S_1 + delta_b_1/2, length.out = nstep_price + 1)
 
-b_2 = seq(-nstep_price/2 * delta_b_2, nstep_price/2 * delta_b_2, delta_b_2)
+# delta_b_2 represents the +- in stock 2
+delta_b_2 = 10
+
+b_2 = seq(S_2 - delta_b_2/2, S_1 + delta_b_2/2, length.out = nstep_price + 1)
 
 # insert final condition
 
@@ -51,48 +51,24 @@ b_2 = seq(-nstep_price/2 * delta_b_2, nstep_price/2 * delta_b_2, delta_b_2)
 # foreach (i = 1:length(b_1)) %dopar%{
 for (i in 1:length(b_1)) {
     for (j in 1:length(b_2)) {
-        V[1, i, j] = max( S_1 * weights[1] * exp((r - 0.5 * sigma[1] ^ 2) * T + sigma[1] * b_1[i]) +
-                          S_2 * weights[2] * exp((r - 0.5 * sigma[2] ^ 2) * T + sigma[2] * b_2[j]) - K, 0)
+        V[1, i, j] = max( b_1[i] * weights[1] + b_2[j] - K, 0)
     }
 }
 
 # set 4 boundary conditions
 
 # sets min S1
-for (j in 1:length(b_2)) {
-    val_j = max( S_1 * weights[1] * exp((r - 0.5 * sigma[1] ^ 2) * T + sigma[1] * b_1[1]) +
-                     S_2 * weights[2] * exp((r - 0.5 * sigma[2] ^ 2) * T + sigma[2] * b_2[j]) - K, 0)
-    for (t in 1:length(time)) {
-        V[t, 1, j] = val_j
-    }
-}
+V[, 1, ] = fds_1s(r, time, weights[1] * b_1[1] - K, weights[2] * b_2, sigma[2], delta_t, delta_b_1/nstep_price)
 
 # sets min S2
-for (i in 1:length(b_1)) {
-    val_i = max( S_1 * weights[1] * exp((r - 0.5 * sigma[1] ^ 2) * T + sigma[1] * b_1[i]) +
-                     S_2 * weights[2] * exp((r - 0.5 * sigma[2] ^ 2) * T + sigma[2] * b_2[1]) - K, 0)
-    for (t in 1:length(time)) {
-        V[t, i, 1] = val_i
-    }
-}
+V[, , 1] = fds_1s(r, time, weights[2] * b_2[1] - K, weights[1] * b_1, sigma[1], delta_t, delta_b_2/nstep_price)
+
 
 # sets max S1
-for (j in 1:length(b_2)) {
-    val_j = max( S_1 * weights[1] * exp((r - 0.5 * sigma[1] ^ 2) * T + sigma[1] * b_1[nstep_price + 1]) +
-                     S_2 * weights[2] * exp((r - 0.5 * sigma[2] ^ 2) * T + sigma[2] * b_2[j]) - K, 0)
-    for (t in 1:length(time)) {
-        V[t, nstep_price + 1, j] = val_j
-    }
-}
+V[, nstep_price + 1, ] = fds_1s(r, time, weights[1] * b_1[nstep_price + 1] - K, weights[2] * b_2, sigma[2], delta_t, delta_b_1/nstep_price)
 
 # sets max S2
-for (i in 1:length(b_1)) {
-    val_i = max( S_1 * weights[1] * exp((r - 0.5 * sigma[1] ^ 2) * T + sigma[1] * b_1[i]) +
-                     S_2 * weights[2] * exp((r - 0.5 * sigma[2] ^ 2) * T + sigma[2] * b_2[nstep_price + 1]) - K, 0)
-    for (t in 1:length(time)) {
-        V[t, i, nstep_price + 1] = val_i
-    }
-}
+V[, , nstep_price + 1] = fds_1s(r, time, weights[2] * b_2[nstep_price + 1] - K, weights[1] * b_1, sigma[1], delta_t, delta_b_2/nstep_price)
 
 # iterate through at each slice
 
@@ -101,12 +77,13 @@ ds2 = delta_b_2
 
 for (t in 1:nstep_time){
     for (i in 2:nstep_price) {
-        s1_t = S_1 * exp((r - 0.5 * sigma[1] ^ 2) * (T - time[t]) + sigma[1] * b_1[i])
+        # iterate through stock price 1s
+        s1_t = b_1[i]
         s1_thing = ((sigma[1] * weights[1] * s1_t) ^ 2) / ds1 ^ 2
         r_thing_1 = (r * delta_t * s1_t) / (2 * ds1) 
         for (j in 2:nstep_price) {
             # can do this step in parllel
-            s2_t = S_2 * exp((r - 0.5 * sigma[2] ^ 2) * (T - time[t]) + sigma[2] * b_2[j])
+            s2_t = b_2[j]
             s2_thing = ((sigma[2] * weights[2] * s2_t) ^ 2) / ds2 ^ 2
             r_thing_2 = (r * delta_t * s2_t) / (2 * ds2)
             huge_thing = (sigma[1] * sigma[2] * cor * weights[1] * weights[2] * s1_t * s2_t * delta_t) / 
