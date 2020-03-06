@@ -9,17 +9,24 @@ source("fds_1_stock.R")
 
 # starting off with 100 * 100 * 3750 (37,500,000)
 
-nstep_time = 3750
-nstep_price = 100
+#####################
+# @ Params
+# nstock: Number of stock price slices
+# weights: vector of weights (s1, s2)
+# S_1: Initial price S1 (May or may not be necessary)
+# S_2: Initial price S2 (May or may not be necessary)
+#####################
 
-V = array(rep(0, (nstep_price + 1) * (nstep_price + 1) * (nstep_time + 1)), 
-                     dim = c(nstep_time + 1, nstep_price + 1, nstep_price + 1))
+nstep_price = 400
+nstep_time = 10000
+
+V = array(rep(0, (nstep_price + 1) * (nstep_price + 1) * (nstep_time + 1)),
+                    dim = c(nstep_time + 1, nstep_price + 1, nstep_price + 1))
 # dimensions are [time, s1, s2]
 
 # initial values
 
 T = 1
-delta_t = T/nstep_time
 K = 75
 S_1 = 100
 S_2 = 50
@@ -30,20 +37,48 @@ weights = c(.5, .5)
 # Risk-free interest rate
 r = 0.01
 
+
+# delta b_1 needs to be set so that the price range goes from 0 - 2 * stock price
+
+# 3 is an arbitrary number determined by Wilmott pg. 1202
+# once this is converted into a function this will me 
+#       max(weights[1] * K * 3, S_1)
+max_b1 = weights[1] * K * 3
+
+b_1 = seq(0, max_b1, max_b1/nstep_price)
+
+delta_S1 = b_1[2]
+
+# once this is converted into a function this will me 
+#       max(weights[2] * K * 3, S_2)
+max_b2 = weights[2] * K * 3
+
+b_2 = seq(0, max_b2, length.out = nstep_price + 1)
+
+delta_S2 = b_2[2]
+
+# For time to converge
+# Wilmott pg. 1253
+# a = coefficient on d^2v/dS1^2
+a = .5 * (sigma[1] ** 2) * (weights[1] ** 2) * (S_1 ** 2)
+
+# d = coefficient on d^2v/dS2^2
+
+d = .5 * (sigma[2] ** 2) * (weights[2] ** 2) * (S_2 ** 2)
+
+# Condition can be found on Wilmott pg. 1258
+
+#delta_t = .5 / ((a / (delta_S1 ** 2)) + (d / (delta_S2 ** 2)))
+# in current example, 
+# dt for 2 stocks = 0.00050625 ~ 2000
+# dt for 1 stock = 0.0001977539 ~ 5,000
+# lets just assume ~ 10,000 for safety
+
+delta_t = 1/10000
+
 # Time vector increments
 time = seq(0, T, delta_t)
 
-# delta_b_1 represents the total+- in stock 1
-delta_b_1 = 30
-
-b_1 = seq(S_1 - delta_b_1/2, S_1 + delta_b_1/2, length.out = nstep_price + 1)
-
-# delta_b_2 represents the +- in stock 2
-delta_b_2 = 10
-
-b_2 = seq(S_2 - delta_b_2/2, S_2 + delta_b_2/2, length.out = nstep_price + 1)
-
-# insert final condition
 
 # cl <- makeCluster(2)
 # registerDoParallel(cl)
