@@ -1,5 +1,5 @@
 rm(list = ls())
-library(doMC)
+library(doParallel)
 library(foreach)
 source("fds_1_stock.R")
 
@@ -18,10 +18,12 @@ source("fds_1_stock.R")
 #####################
 
 nstep_price = 400
-nstep_time = 10000
+nstep_time = 15000
+
+t1 = proc.time()
 
 V = array(rep(0, (nstep_price + 1) * (nstep_price + 1) * (nstep_time + 1)),
-                    dim = c(nstep_time + 1, nstep_price + 1, nstep_price + 1))
+                   dim = c(nstep_time + 1, nstep_price + 1, nstep_price + 1))
 # dimensions are [time, s1, s2]
 
 # initial values
@@ -74,14 +76,12 @@ d = .5 * (sigma[2] ** 2) * (weights[2] ** 2) * (S_2 ** 2)
 # dt for 1 stock = 0.0001977539 ~ 5,000
 # lets just assume ~ 10,000 for safety
 
-delta_t = 1/10000
+delta_t = 1/nstep_time
 
 # Time vector increments
 time = seq(0, T, delta_t)
 
 
-# cl <- makeCluster(2)
-# registerDoParallel(cl)
 
 # foreach (i = 1:length(b_1)) %dopar%{
 for (i in 1:length(b_1)) {
@@ -93,38 +93,35 @@ for (i in 1:length(b_1)) {
 # set 4 boundary conditions
 
 # sets min S1
-V[, 1, ] = fds_1s(r, time, K - weights[1] * b_1[1], weights[2] * b_2, sigma[2])
-
-mean(is.nan(V[, 1, ]))
+V[, 1, ] = fds_1s(r, time, K - weights[1] * b_1[1], weights[2] * b_2, sigma[2]) # both of these are 0
 
 # sets min S2
-V[, , 1] = fds_1s(r, time, K - weights[2] * b_2[1], weights[1] * b_1, sigma[1])
+V[, , 1] = fds_1s(r, time, K - weights[2] * b_2[1], weights[1] * b_1, sigma[1]) # 
 
-mean(is.nan(V[, , 1]))
 
 # sets max S1
 V[, nstep_price + 1, ] = fds_1s(r, time, K - weights[1] * b_1[nstep_price + 1], weights[2] * b_2, sigma[2])
 
-mean(is.nan(V[, nstep_price + 1, ]))
-
 # sets max S2
 V[, , nstep_price + 1] = fds_1s(r, time, K - weights[2] * b_2[nstep_price + 1] , weights[1] * b_1, sigma[1])
 
-mean(is.nan(V[, , nstep_price + 1]))
 
 # iterate through at each slice
 
-ds1 = delta_b_1 
-ds2 = delta_b_2
+ds1 = b_1[2]
+ds2 = b_2[2]
 
-for (t in 1:nstep_time){
+cl = makeCluster(2)
+registerDoParallel(cl)
+
+for (t in 1:nstep_time) {
     for (i in 2:nstep_price) {
         # iterate through stock price 1s
         s1_t = b_1[i]
         s1_thing = ((sigma[1] * weights[1] * s1_t) ^ 2) / ds1 ^ 2
         r_thing_1 = (r * delta_t * s1_t) / (2 * ds1) 
-        for (j in 2:nstep_price) {
-        #foreach (i = 2:nstep_price) %dopar%{
+        #for (j in 2:nstep_price) {
+        foreach (j = 2:nstep_price) %dopar%{
             # can do this step in parllel
             s2_t = b_2[j]
             s2_thing = ((sigma[2] * weights[2] * s2_t) ^ 2) / ds2 ^ 2
@@ -145,7 +142,10 @@ for (t in 1:nstep_time){
     }
 }
 
+stopImplicitCluster()
+
 # total nan 
 
 mean(is.nan(V))
 
+t2 = proc.time()
