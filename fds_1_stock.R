@@ -11,15 +11,17 @@
 ######
 
 # parameters taken from fds_2 issue plane
-#strike = K - weights[2] * b_2[401] # fix max stock 2
-#b = weights[1] * b_1
-#sigma = sigma[1]
+# strike = K - weights[1] * b_1[nstep_price + 1] # fix max stock 1
+# b = weights[2] * b_2
+# sigma = sigma[2]
 ######
 
 # For convergence
 # let a = 1/2 * sigma ** 2 * stock ** 2
 # delta t < ds ** 2 / (2 * a)
 
+
+#fds_1s(r, time, K - weights[1] * b_1[1], weights[2] * b_2, sigma[2])
 
 fds_1s = function(r, time, strike, b, sigma) {
     l_t = length(time)
@@ -31,18 +33,28 @@ fds_1s = function(r, time, strike, b, sigma) {
 
     # First, consider final condition
     V_c[1, ] = pmax(b - strike, 0)
+    #mean(V_c[1, ] == 0)
     
     # Then, consider boundary condition
-    V_c[, 1] = pmax(b[1] - strike * exp(-r * (T-time)), 0)
-    V_c[, length(b)] = pmax(b[length(b)] - strike * exp(-r * (T-time)), 0)
+    V_c[, 1] = pmax(b[1] - strike * exp(-r * (T - time)), 0)
+    #mean(V_c[,1 ] == 0)
     
+    V_c[, length(b)] = pmax(b[length(b)] - strike * exp(-r * time), 0)
+    #mean(V_c[,401 ] == 0)
+    
+    mat = array(rep(0, 3 * length(b)), c(3, length(b)))
+    for (i in 1:length(b)) {
+        mat[1, i] = (1 - (sigma ** 2 * b[i] ** 2 * dt) / (ds ** 2) - r * dt)
+        mat[2, i] = (dt / 2) * (((sigma ** 2 * b[i] ** 2) / (ds ** 2)) + (r * b[i]) / (ds))
+        mat[3, i] = ((1 / 2) * ((sigma ** 2 * b[i] ** 2 * dt) / (ds ** 2)) - (r * b[i] * dt) / (2 * ds))
+    }
     # Finite difference scheme
     for (t in 1:(length(time) - 1)) {
         for (i in 2:(length(b) - 1)) {
-            V_c[t + 1, i] = 
-                V_c[t, i] * (1 - (sigma ** 2 * b[i] ** 2 * dt) / (ds ** 2) - r * dt) + 
-                V_c[t, i + 1] * (dt / 2) * (((sigma ** 2 * b[i] ** 2) / (ds ** 2)) + (r * b[i]) / (ds)) + 
-                V_c[t, i - 1] * ((1 / 2) * ((sigma ** 2 * b[i] ** 2 * dt) / (ds ** 2)) - (r * b[i] * dt) / (2 * ds))
+            V_c[t + 1, i] =
+               V_c[t, i] * (1 - (sigma ** 2 * b[i] ** 2 * dt) / (ds ** 2) - r * dt) +
+               V_c[t, i + 1] * (dt / 2) * (((sigma ** 2 * b[i] ** 2) / (ds ** 2)) + (r * b[i]) / (ds)) +
+               V_c[t, i - 1] * ((1 / 2) * ((sigma ** 2 * b[i] ** 2 * dt) / (ds ** 2)) - (r * b[i] * dt) / (2 * ds))
         }
     }
     mean(is.nan(V_c))
