@@ -41,3 +41,7 @@ vignettes/*.pdf
 
 # MacOS
 .DS_Store
+
+# CSV
+
+*.csv

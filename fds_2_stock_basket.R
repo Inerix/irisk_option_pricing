@@ -17,15 +17,6 @@ source("fds_1_stock.R")
 # S_2: Initial price S2 (May or may not be necessary)
 #####################
 
-nstep_price = 400
-nstep_time = 15000
-
-t1 = proc.time()
-
-V = array(rep(0, (nstep_price + 1) * (nstep_price + 1) * (nstep_time + 1)),
-                   dim = c(nstep_time + 1, nstep_price + 1, nstep_price + 1))
-# dimensions are [time, s1, s2]
-
 # initial values
 
 T = 1
@@ -39,6 +30,20 @@ weights = c(.5, .5)
 # Risk-free interest rate
 r = 0.01
 
+nstep_price = 100 # delta_s <= sigma ** 2 * S / r
+
+# for 1 - stock case, convergence is delta_t <= (sigma ** 2 * I ** 2)
+# Condition can be found on Wilmott pg. 1258
+#delta_t = 1/((min(sigma) ** 2) * (nstep_price ** 2))
+#nstep_time = 1/delta_t # 1600
+nstep_time = 64000
+delta_t = 1/nstep_time
+
+t1 = proc.time()
+
+V = array(rep(0, (nstep_price + 1) * (nstep_price + 1) * (nstep_time + 1)),
+                   dim = c(nstep_time + 1, nstep_price + 1, nstep_price + 1))
+# dimensions are [time, s1, s2]
 
 # delta b_1 needs to be set so that the price range goes from 0 - 2 * stock price
 
@@ -68,20 +73,8 @@ a = .5 * (sigma[1] ** 2) * (weights[1] ** 2) * (S_1 ** 2)
 
 d = .5 * (sigma[2] ** 2) * (weights[2] ** 2) * (S_2 ** 2)
 
-# Condition can be found on Wilmott pg. 1258
-
-#delta_t = .5 / ((a / (delta_S1 ** 2)) + (d / (delta_S2 ** 2)))
-# in current example, 
-# dt for 2 stocks = 0.00050625 ~ 2000
-# dt for 1 stock = 0.0001977539 ~ 5,000
-# lets just assume ~ 10,000 for safety
-
-delta_t = 1/nstep_time
-
 # Time vector increments
 time = seq(0, T, delta_t)
-
-
 
 # foreach (i = 1:length(b_1)) %dopar%{
 for (i in 1:length(b_1)) {
@@ -94,42 +87,46 @@ for (i in 1:length(b_1)) {
 
 # sets min S1
 V[, 1, ] = fds_1s(r, time, K - weights[1] * b_1[1], weights[2] * b_2, sigma[2]) # both of these are 0
+#mean(is.nan(V[, 1, ]))
 
 # sets min S2
 V[, , 1] = fds_1s(r, time, K - weights[2] * b_2[1], weights[1] * b_1, sigma[1]) # 
-
+#mean(is.nan(V[, , 1]))
 
 # sets max S1
 V[, nstep_price + 1, ] = fds_1s(r, time, K - weights[1] * b_1[nstep_price + 1], weights[2] * b_2, sigma[2])
+#mean(is.nan(V[, nstep_price + 1, ]))
 
 # sets max S2
 V[, , nstep_price + 1] = fds_1s(r, time, K - weights[2] * b_2[nstep_price + 1] , weights[1] * b_1, sigma[1])
-
+#mean(is.nan(V[, , nstep_price + 1 ]))
 
 # iterate through at each slice
 
 ds1 = b_1[2]
 ds2 = b_2[2]
 
-cl = makeCluster(2)
-registerDoParallel(cl)
+#cl = makeCluster(2, type = "FORK")
+#registerDoParallel(cores = 3)
+
+#getDoParWorkers()
 
 for (t in 1:nstep_time) {
     for (i in 2:nstep_price) {
         # iterate through stock price 1s
         s1_t = b_1[i]
-        s1_thing = ((sigma[1] * weights[1] * s1_t) ^ 2) / ds1 ^ 2
+        s1_thing = (delta_t * (sigma[1] * weights[1] * s1_t) ** 2) / ds1 ^ 2
         r_thing_1 = (r * delta_t * s1_t) / (2 * ds1) 
-        #for (j in 2:nstep_price) {
-        foreach (j = 2:nstep_price) %dopar%{
-            # can do this step in parllel
+        for (j in 2:nstep_price) {
+        #V[t + 1, i, 2:nstep_price] = foreach (j = 2:nstep_price, .combine = c) %dopar%{
             s2_t = b_2[j]
-            s2_thing = ((sigma[2] * weights[2] * s2_t) ^ 2) / ds2 ^ 2
+            s2_thing = (delta_t * (sigma[2] * weights[2] * s2_t) ** 2) / ds2 ^ 2
             r_thing_2 = (r * delta_t * s2_t) / (2 * ds2)
             huge_thing = (sigma[1] * sigma[2] * cor * weights[1] * weights[2] * s1_t * s2_t * delta_t) / 
-                            (8 * delta_b_1 * delta_b_2)
+                            (8 * ds1 * ds2)
+            #return(
             V[t + 1, i, j] = 
-                V[t, i, j] * (1 - s1_thing + s2_thing - r * delta_t) + 
+                V[t, i, j] * (1 - s1_thing - s2_thing - r * delta_t) + 
                 V[t, i + 1, j] * (r_thing_1 + s1_thing / 2) + 
                 V[t, i - 1, j] * (s1_thing / 2 - r_thing_1) + 
                 V[t, i, j + 1] * (r_thing_2 + s2_thing/2) + 
@@ -137,15 +134,18 @@ for (t in 1:nstep_time) {
                 V[t, i + 1, j + 1] * huge_thing - 
                 V[t, i - 1, j + 1] * huge_thing - 
                 V[t, i + 1, j - 1] * huge_thing +
-                V[t, i - 1, j - 1] * huge_thing
+                V[t, i - 1, j - 1] * huge_thing#)
         }    
     }
 }
 
-stopImplicitCluster()
+#stopImplicitCluster()
 
 # total nan 
 
 mean(is.nan(V))
 
 t2 = proc.time()
+
+#write.csv2(V, file = "fds_out.csv")
+

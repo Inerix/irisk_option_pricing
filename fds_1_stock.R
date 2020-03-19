@@ -33,14 +33,14 @@ fds_1s = function(r, time, strike, b, sigma) {
 
     # First, consider final condition
     V_c[1, ] = pmax(b - strike, 0)
-    mean(V_c[1, ] == 0)
+    #mean(V_c[1, ] == 0)
     
     # Then, consider boundary condition
     V_c[, 1] = pmax(b[1] - strike * exp(-r * (T - time)), 0)
-    mean(V_c[,1 ] == 0)
+    #mean(V_c[,1 ] == 0)
     
     V_c[, length(b)] = pmax(b[length(b)] - strike * exp(-r * time), 0)
-    mean(V_c[,401 ] == 0)
+    #mean(V_c[,401 ] == 0)
     
     mat = array(rep(0, 3 * length(b)), c(3, length(b)))
     for (i in 1:length(b)) {
