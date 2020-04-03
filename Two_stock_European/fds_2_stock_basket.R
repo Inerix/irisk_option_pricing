@@ -1,6 +1,6 @@
 rm(list = ls())
 
-source("fds_1_stock.R")
+source("Two_stock_European/fds_1_stock.R")
 
 #####################
 # @ Params
@@ -16,6 +16,8 @@ source("fds_1_stock.R")
 # a = 1/2 * \sigma ** 2 * S ** 2
 # b = r * \sigma
 # delta_s <= 2a/abs(b)
+
+# fds_2s(sigma = c(s1, s2), cor, r, K, nstep_price, weights)
 
 # initial values
 fds_2s = function(sigma = c(.3, .3), cor = .3, r = .01, K, nstep_price = 100, weights = c(.5, .5)){
@@ -101,14 +103,14 @@ fds_2s = function(sigma = c(.3, .3), cor = .3, r = .01, K, nstep_price = 100, we
     
     V = V[length(time), ret_dim_1:length(b_1), ret_dim_2:length(b_2)]
     
-    ret_tibble = tibble(s1 = rep(s1, length(V)), s2 = rep(s2, length(V)), cor = rep(cor, length(V)), 
+    ret_tibble = tibble(sig1 = rep(s1, length(V)), sig2 = rep(s2, length(V)), cor = rep(cor, length(V)), 
                         r = rep(r, length(V)), K = rep(K, length(V)), w1 = rep(w1, length(V)), w2 = rep(w2, length(V)),
-                        Stock_1_p = rep(0, length(V)), Stock_2_p = rep(0, length(V)), 
+                        S1 = rep(0, length(V)), S2 = rep(0, length(V)), 
                         V = rep(0, length(V)))
     alt_len = dim(V)[1]
     ret_tibble$V = c(V)
-    ret_tibble$Stock_1_p = rep_len(b_1[ret_dim_1:length(b_1)], length.out = length(V))
-    ret_tibble$Stock_2_p = unlist(lapply(b_2[ret_dim_2:length(b_2)], 
+    ret_tibble$S1 = rep_len(b_1[ret_dim_1:length(b_1)], length.out = length(V))
+    ret_tibble$S2 = unlist(lapply(b_2[ret_dim_2:length(b_2)], 
                                          function(price){
                                              rep(price, alt_len)
                                          }))

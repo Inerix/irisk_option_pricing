@@ -32,19 +32,13 @@ fds_1s = function(r, time, strike, S, sigma) {
     # [time, price]
     
     # First, consider final condition
-    V_c[1, ] = pmax(b - strike, 0)
+    V[1, ] = pmax(S - strike, 0)
     
     # Then, consider boundary condition
-    V_c[, 1] = pmax(b[1] - strike * exp(-r * (T - time)), 0)
+    V[, 1] = pmax(S[1] - strike * exp(-r * (T - time)), 0)
     
-    V_c[, length(b)] = pmax(b[length(b)] - strike * exp(-r * time), 0)
+    V[, length(S)] = pmax(S[length(S)] - strike * exp(-r * time), 0)
     
-    mat = array(rep(0, 3 * length(S)), c(3, length(S)))
-    for (i in 1:length(S)) {
-        mat[1, i] = (1 - (sigma ** 2 * S[i] ** 2 * dt) / (ds ** 2) - r * dt)
-        mat[2, i] = (dt / 2) * (((sigma ** 2 * S[i] ** 2) / (ds ** 2)) + (r * S[i]) / (ds))
-        mat[3, i] = ((1 / 2) * ((sigma ** 2 * S[i] ** 2 * dt) / (ds ** 2)) - (r * S[i] * dt) / (2 * ds))
-    }
     # Finite difference scheme
     for (t in 1:(length(time) - 1)) {
         for (i in 2:(length(S) - 1)) {
@@ -54,6 +48,6 @@ fds_1s = function(r, time, strike, S, sigma) {
                 V[t, i - 1] * ((1 / 2) * ((sigma ** 2 * S[i] ** 2 * dt) / (ds ** 2)) - (r * S[i] * dt) / (2 * ds))
         }
     }
-    return(V_c)
+    return(V)
     
 }
