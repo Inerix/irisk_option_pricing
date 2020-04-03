@@ -1,14 +1,11 @@
 # @ Params
 # r - risk-free interest rate
 # time - Vector representing time slices
-# K - Strike price of the stock
-# S - Vector of all possible stock prices
+# K - Strike price 
+# S - Vector of all possible stock prices for FDS grid
 # sigma - Volatility 
 # D - dividend rate
-# @ Return - matrix of American Call option prices
-
-######
-
+# @ Return - vector of time 0 price of American Call option prices
 
 ######
 
@@ -17,19 +14,16 @@
 # delta t < ds ** 2 / (2 * a)
 
 
-#fds_1s_A(r, time, K, s, sigma, D)
+#fds_1s_A(r, time, K, sigma, D)
 
 
-fds_1s_A = function(r, time, K, S, sigma, D) {
-    r = 0.06
-    nstep_time = 1600
-    time = seq(0, 1, length.out = nstep_time)
-    sigma = .03
-    D = .05
-    K = 75
-    S = seq(0, 150, length.out = 200)
+fds_1s_A = function(time, r, K, sigma, D) {
+    # r = .01
+    # sigma = .3
+    # D = .007
+    # K = 75
     
-    
+    S = seq(0, 3*K, length.out = 100)
     l_t = length(time)
     dt = time[2]
     ds = S[2]
@@ -59,8 +53,8 @@ fds_1s_A = function(r, time, K, S, sigma, D) {
             V_amer[t + 1, i] = max( round((S[i] - K), 4), round(V[t + 1, i], 4))
         }
     }
-    mean(is.nan(V))
-    return(V_amer)
+    # mean(is.nan(V_amer))
+    return(V_amer[l_t,])
 
 }
 
