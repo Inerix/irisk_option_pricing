@@ -1,4 +1,10 @@
 #####################
+
+# Scripts to run prior to this one
+# | fds_1_stock.R
+# | fds_2_stock_basket.R
+
+#####################
 # @ Params
 # sig: volatilty
 # cor: Correlation between underlying

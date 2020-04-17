@@ -1,0 +1,96 @@
+---
+title: "american-NN-plots"
+author: "Kara Wong"
+date: "4/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Finite Difference Scheme for an American Option with 1 underlying stock
+
+```{r american-fds,}
+fds_1s_A = function(time, r, K, sigma, D) {
+    
+    S = seq(0, 3*K, length.out = 100)
+    l_t = length(time)
+    dt = time[2]
+    ds = S[2]
+    
+    V = array(rep(0, (length(S)) * (l_t)), dim = c(l_t, length(S)))
+    # [time, price]
+    
+    # First, consider final condition
+    V[1, ] = pmax(S - K, 0)
+    
+    # Then, consider Boundary condition
+    V[, 1] = pmax(S[1] - K * exp(-r * (T - time)), 0)
+    
+    V[, length(S)] = pmax(S[length(S)] - K * exp(-r * time), 0)
+    
+    V_amer = V
+    # Finite difference scheme
+    for (t in 1:(length(time) - 1)) {
+        for (i in 2:(length(S) - 1)) {
+            V[t + 1, i] =
+                V[t, i - 1] * ((1 / 2) * ((sigma ** 2 * S[i] ** 2 * dt) / (ds ** 2)) - ((r - D) * S[i] * dt) / (2 * ds)) + 
+                V[t, i] * (1 - (sigma ** 2 * S[i] ** 2 * dt) / (ds ** 2) - r * dt) +
+                V[t, i + 1] * (dt / 2) * (((sigma ** 2 * S[i] ** 2) / (ds ** 2)) + ((r - D) * S[i]) / (ds))
+            V_amer[t + 1, i] = max(round((S[i] - K), 4), round(V[t + 1, i], 4))
+        }
+    }
+    # mean(is.nan(V_amer))
+    return(V_amer[l_t,])
+
+}
+```
+
+
+## Generate Data
+
+```{r generate-data}
+obs_in_data = 60000
+num_sets = obs_in_data/100
+
+set.seed(42)
+r = runif(num_sets, 0.01, 0.06)
+sigma = runif(num_sets, 0.1, 0.6)
+D = runif(num_sets, 0.01, 0.06)
+K = runif(num_sets, 25, 75)
+
+nstep_time = round(max(sigma), 1)^2 * 100^2   #3600
+time = seq(0, 1, length.out = nstep_time)
+
+data = data.frame("r" = rep(NA, obs_in_data), 
+                  "sigma" = rep(NA, obs_in_data), 
+                  "D" = rep(NA, obs_in_data), 
+                  "K" = rep(NA, obs_in_data), 
+                  "S" = rep(NA, obs_in_data),
+                  "V" = rep(NA, obs_in_data))
+
+t1 = proc.time()
+for (k in 1:num_sets){
+    # i:j goes over 100 indices per each k
+    i = 100*(k-1) + 1
+    j = 100*k
+    data$r[i:j] = rep(r[k], 100)
+    data$sigma[i:j] = rep(sigma[k], 100)
+    data$D[i:j] = rep(D[k], 100)
+    data$K[i:j] = rep(K[k], 100)
+    data$S[i:j] = seq(0, 3*K[k], length.out = 100)
+    data$V[i:j] = fds_1s_A(time, r[k], K[k], sigma[k], D[k])
+}
+t2 = proc.time()
+
+trn_idx = sample(1:obs_in_data, 0.8 * obs_in_data)
+data_est = as.matrix(data[trn_idx,])
+data_val = as.matrix(data[-trn_idx,])
+```
+
+This process takes roughly `round((t2-t1)/60, 2)` minutes due to the computationally intensive process of finite differencing.
+
+
+
+

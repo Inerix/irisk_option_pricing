@@ -3,6 +3,11 @@ rm(list = ls())
 source("Two_stock_European/fds_1_stock.R")
 
 #####################
+
+# Scripts to run prior to this one
+# | fds_1_stock.R
+
+#####################
 # @ Params
 # sigma: Array of volatilties
 # cor: Correlation between underlying
