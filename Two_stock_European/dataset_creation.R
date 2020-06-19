@@ -15,32 +15,31 @@ source("Two_stock_European/fds_2_stock_basket.R")
 
 # tst = fds_2s(K = 75, weights = c(.3, .7))
 
+dataset_size = 200000
+n_combinations = 100
+n_per_combo = dataset_size / n_combinations
+
 set.seed(420)
 
-sig1s = runif(2, .01, .99)        # 0.6034283, 0.9608715
-sig2s = runif(2, .01, .99)        # 0.1809654, 0.4762730
+sig1s = runif(n_combinations, .01, .99)
+sig2s = runif(n_combinations, .01, .99)
+
 # https://www.sciencedirect.com/science/article/abs/pii/S0304405X10000437
-cors = rnorm(3, .237, .093)     # 0.2924472, 0.2079799, 0.2740121
-rs = runif(2, .01, .06)         # 0.02516739, 0.04581248
-Ks = runif(3, 10, 80)           # 30.33641, 23.73577, 32.58050
-weights = runif(3, .01, .99)    # 0.8336193, 0.0115632, 0.1719843
-data = tibble(sig1 = NA, sig2 = NA, cor = NA, r = NA, K = NA, w1 = NA, w2 = NA, S1 = NA, S2 = NA, V = NA)
+cors = rnorm(n_combinations, .237, .093)
+rs = runif(n_combinations, .01, .06)
+Ks = runif(n_combinations, 10, 80)
+weights = runif(n_combinations, .05, .95)
+
+data = tibble(sig1 = rep(NA, dataset_size), sig2 = rep(NA, dataset_size), cor = rep(NA, dataset_size), 
+              r = rep(NA, dataset_size), K = rep(NA, dataset_size), w1 = rep(NA, dataset_size), 
+              w2 = rep(NA, dataset_size), S1 = rep(NA, dataset_size), S2 = rep(NA, dataset_size), V = rep(NA, dataset_size))
 
 t1 = proc.time()
-
-for (s1 in sig1s) {
-    for (s2 in sig2s){
-        for (c in cors) {
-            for (r in rs) {
-                for (strike in Ks) {
-                    for (w1 in weights) {
-                        ret = fds_2s(sigma = c(sig1, sig2), cor = c, r = r, K = strike, weights = c(w1, 1 - w1))
-                        data = bind_rows(data, ret)
-                    }
-                }
-            }
-        }
-    }
+for (ind in 0:(n_combinations - 1)) {
+    ind_1_index = ind + 1
+    data[(ind * n_per_combo + 1):((ind + 1) * n_per_combo ), ] = 
+        fds_2s(sigma = c(sig1s[ind_1_index], sig2s[ind_1_index]), cor = cors[ind_1_index], r = rs[ind_1_index], 
+               K = Ks[ind_1_index], weights = c(weights[ind_1_index], 1 - weights[ind_1_index]))
 }
 
 t2 = proc.time()

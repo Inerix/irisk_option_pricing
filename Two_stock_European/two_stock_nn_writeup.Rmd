@@ -1,0 +1,399 @@
+---
+title: "two_stock_basket_results"
+author: 
+- name: Jonathan Lu
+- name: Kara Wong
+date: "4/3/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(echo = TRUE, root.dir = rprojroot::find_rstudio_root_file())
+```
+
+# Two stock case
+
+```{r packages, include = FALSE}
+library(reticulate)
+library(keras)
+library(tensorflow)
+library(tidyverse)
+library(caret)
+```
+
+```{r data-setup}
+source("Two_stock_European/fds_2_stock_basket.R")
+# data setup
+data_2s = read.csv("Two_stock_European/data/two_stock_v2.csv")[,-1]
+data_2s$V = pmax(0, data_2s$V) # there's some values extremely close to 0 i.e -2.087494e-35
+
+set.seed(42)
+n_2s = nrow(data_2s)
+trn_2s_idx = sample(1:n_2s, 0.8 * n_2s)
+
+data_2s_trn = as.matrix(data_2s[trn_2s_idx, ])
+data_2s_tst = as.matrix(data_2s[-trn_2s_idx, ])
+
+set.seed(42)
+alt_w1 = rep(runif(100, .05, .95), each = 2000)
+alt_w2 = data_2s$w2 * alt_w1 / data_2s$w1
+
+data_2s$w1 = alt_w1
+data_2s$w2 = alt_w2
+
+data_2s_alt_trn = as.matrix(data_2s[trn_2s_idx, ])
+data_2s_alt_tst = as.matrix(data_2s[-trn_2s_idx, ])
+
+rm(data_2s)
+rm(trn_2s_idx)
+```
+
+# Model Creation
+
+### Model with linear w1 and w2
+
+```{r nn-setup-w2}
+use_session_with_seed(42)
+basket_mod_w2 = keras_model_sequential() %>% 
+    layer_dense(units = 64, activation = "sigmoid", input_shape = (ncol(data_2s_trn) - 1) )%>%
+    layer_dense(units = 64, activation = "sigmoid", input_shape = 64) %>%
+    layer_dense(units = 1, activation = "softplus") %>% 
+    compile(
+        optimizer = "rmsprop",
+        loss = "mse",
+        metrics = c("mae")  
+    )
+```
+
+```{r training-nn-w2}
+t1 = proc.time()
+basket_mod_w2 %>%
+    fit(
+        x = data_2s_trn[, -10],
+        y = data_2s_trn[, 10],
+        epochs = 500, 
+        batch = 1024,  
+        validation_split = 0.25,
+        callbacks = callbacks,
+        verbose = FALSE
+    )
+t2 = proc.time()
+t2-t1
+# ~ 1 minutes
+```
+
+```{r trn_error_2}
+trn_2s_pred_w2 = round(basket_mod_w2 %>% predict(as.matrix(data_2s_trn[,-10])), 4)
+trn_2s_act = round(data_2s_trn[, 10], 4)
+```
+
+```{r trn_mae}
+mean(abs(trn_2s_pred_w2 - trn_2s_act))
+```
+
+### Model with non-linear w1 and w2
+
+```{r nn-setup-alt}
+use_session_with_seed(42)
+basket_mod_w2_n = keras_model_sequential() %>% 
+    layer_dense(units = 64, activation = "sigmoid", input_shape = (ncol(data_2s_alt_trn) - 1) )%>%
+    layer_dense(units = 64, activation = "sigmoid", input_shape = 64) %>%
+    layer_dense(units = 1, activation = "softplus") %>% 
+    compile(
+        optimizer = "rmsprop",
+        loss = "mse",
+        metrics = c("mae")  
+    )
+```
+
+```{r training-nn-alt}
+t1 = proc.time()
+basket_mod_w2_n %>%
+    fit(
+        x = data_2s_alt_trn[, -10],
+        y = data_2s_alt_trn[, 10],
+        epochs = 500, 
+        batch = 1024,  
+        validation_split = 0.25,
+        callbacks = callbacks,
+        verbose = FALSE
+    )
+t2 = proc.time()
+t2-t1
+```
+
+```{r trn-mae-nn-alt}
+trn_2s_pred_alt = round(basket_mod_w2_n %>% predict(as.matrix(data_2s_alt_trn[,-10])), 4)
+mean(abs(trn_2s_pred_alt - trn_2s_act))
+```
+
+### Base Model with linear w1 and w2
+
+```{r nn-setup-base}
+use_session_with_seed(42)
+basket_mod_basic = keras_model_sequential() %>% 
+    layer_dense(units = 64, activation = "relu", input_shape = (ncol(data_2s_trn) - 1) )%>%
+    layer_dense(units = 64, activation = "relu", input_shape = 64) %>%
+    layer_dense(units = 1, activation = "relu") %>% 
+    compile(
+        optimizer = "rmsprop",
+        loss = "mse",
+        metrics = c("mae")  
+    )
+```
+
+```{r training-nn-base}
+t1 = proc.time()
+basket_fit_w2 = basket_mod_basic %>%
+    fit(
+        x = data_2s_trn[, -10],
+        y = data_2s_trn[, 10],
+        epochs = 500, 
+        batch = 1024,  
+        validation_split = 0.25,
+        callbacks = callbacks,
+        verbose = FALSE
+    )
+t2 = proc.time()
+t2-t1
+# ~ 1 minutes
+```
+
+### Base Model with non linear w1 and w2
+
+```{r nn-setup-base}
+use_session_with_seed(42)
+basket_mod_basic_no_lin = keras_model_sequential() %>% 
+    layer_dense(units = 64, activation = "relu", input_shape = (ncol(data_2s_trn) - 1) )%>%
+    layer_dense(units = 64, activation = "relu", input_shape = 64) %>%
+    layer_dense(units = 1, activation = "relu") %>% 
+    compile(
+        optimizer = "rmsprop",
+        loss = "mse",
+        metrics = c("mae")  
+    )
+```
+
+```{r training-nn-base}
+t1 = proc.time()
+basket_fit_w2 = basket_mod_basic_no_lin %>%
+    fit(
+        x = data_2s_trn[, -10],
+        y = data_2s_trn[, 10],
+        epochs = 500, 
+        batch = 1024,  
+        validation_split = 0.25,
+        callbacks = callbacks,
+        verbose = FALSE
+    )
+t2 = proc.time()
+t2-t1
+# ~ 1 minutes
+```
+
+### Clear unnecessary data
+
+```{r clear-trn-data}
+rm(trn_2s_act)
+rm(trn_2s_pred)
+rm(trn_2s_pred_w2)
+rm(data_2s_trn)
+```
+
+
+## Testing
+
+### Model without linear relationship between w1 and w2
+
+```{r tst_error}
+tst_2s_pred = c(round(basket_mod_w2_n %>% predict(data_2s_alt_tst[,-10]), 4))
+tst_2s_act = unname(c(round(data_2s_tst[, "V"], 4)))
+```
+
+```{r tst_mae_exp}
+tst_tibble = tibble(mae = abs(tst_2s_pred - tst_2s_act), basketDiff = unname(data_2s_alt_tst[,"w1"] * data_2s_alt_tst[,"S1"] + (1 - data_2s_alt_tst[,"w1"]) * data_2s_alt_tst[,"S2"] - data_2s_alt_tst[,"K"]))
+
+mean(tst_tibble$mae)
+```
+
+In this we define basket diff as basket price - strike price. Therefore a high basket diff means the call options is very out-of-the-money and a low basket diff is extremely in-the-money.
+
+```{r tst_plot_1}
+ggplot(data = tst_tibble, aes(x = basketDiff, y = mae, alpha = .01)) +
+    geom_jitter()
+```
+
+```{r tst_plot_3}
+ggplot(tst_tibble , aes(x = mae)) + 
+    geom_histogram(bins = 50)
+```
+
+```{r tst_quantile}
+tst_errs = pull(tst_tibble, mae)
+r_tst_inds = which(tst_errs > quantile(tst_errs, .75))
+r_tst_inds_2 = which(tst_errs > quantile(tst_errs, .9))
+r_tst_inds_3 = which(tst_errs > quantile(tst_errs, .825))
+quantile(tst_errs, c(.25, .5, .75, .9))
+```
+
+### Model with linear relationship between w1 and w2
+
+```{r tst_error_w2}
+tst_2s_pred_w2 = c(round(basket_mod_w2 %>% predict(data_2s_tst[,-10]), 4))
+```
+
+```{r tst_mae_exp_w2}
+tst_tibble_w2 = tibble(mae = abs(tst_2s_pred_w2 - tst_2s_act), basketDiff = unname(data_2s_tst[,"w1"] * data_2s_tst[,"S1"] + (1 - data_2s_tst[,"w1"]) * data_2s_tst[,"S2"] - data_2s_tst[,"K"]))
+mean(tst_tibble_w2$mae)
+```
+
+In this we define basket diff as basket price - strike price. Therefore a high basket diff means the call options is very out-of-the-money and a low basket diff is extremely in-the-money.
+
+```{r w2_tst_plot_1}
+    ggplot(data = tst_tibble_w2, aes(x = basketDiff, y = mae, alpha = .01)) +
+    geom_jitter()
+```
+
+```{r w2_tst_plot_3}
+ggplot(tst_tibble_w2 , aes(x = mae)) + 
+    geom_histogram(bins = 50)
+```
+
+```{r w2_tst_quantile}
+tst_errs = pull(tst_tibble_w2, mae)
+r_tst_inds = which(tst_errs > quantile(tst_errs, .75))
+r_tst_inds_2 = which(tst_errs > quantile(tst_errs, .9))
+r_tst_inds_3 = which(tst_errs > quantile(tst_errs, .825))
+quantile(tst_errs, c(.25, .5, .75, .9))
+```
+
+### Base Model without linear relationship between w1 and w2
+
+```{r tst_error}
+tst_2s_pred = c(round(basket_mod_basic_no_lin %>% predict(data_2s_alt_tst[,-10]), 4))
+tst_2s_act = unname(c(round(data_2s_tst[, "V"], 4)))
+```
+
+```{r tst_mae_exp}
+tst_tibble = tibble(mae = abs(tst_2s_pred - tst_2s_act), basketDiff = unname(data_2s_alt_tst[,"w1"] * data_2s_alt_tst[,"S1"] + (1 - data_2s_alt_tst[,"w1"]) * data_2s_alt_tst[,"S2"] - data_2s_alt_tst[,"K"]))
+
+mean(tst_tibble$mae)
+```
+
+In this we define basket diff as basket price - strike price. Therefore a high basket diff means the call options is very out-of-the-money and a low basket diff is extremely in-the-money.
+
+```{r tst_plot_1}
+ggplot(data = tst_tibble, aes(x = basketDiff, y = mae, alpha = .01)) +
+    geom_jitter()
+```
+
+```{r tst_plot_3}
+ggplot(tst_tibble , aes(x = mae)) + 
+    geom_histogram(bins = 50)
+```
+
+```{r tst_quantile}
+tst_errs = pull(tst_tibble, mae)
+r_tst_inds = which(tst_errs > quantile(tst_errs, .75))
+r_tst_inds_2 = which(tst_errs > quantile(tst_errs, .9))
+r_tst_inds_3 = which(tst_errs > quantile(tst_errs, .825))
+quantile(tst_errs, c(.25, .5, .75, .9))
+```
+
+### Base Model with linear relationship between w1 and w2
+
+```{r tst_error_w2}
+tst_2s_pred_w2 = c(round(basket_mod_basic %>% predict(data_2s_tst[,-10]), 4))
+```
+
+```{r tst_mae_exp_w2}
+tst_tibble_w2 = tibble(mae = abs(tst_2s_pred_w2 - tst_2s_act), basketDiff = unname(data_2s_tst[,"w1"] * data_2s_tst[,"S1"] + (1 - data_2s_tst[,"w1"]) * data_2s_tst[,"S2"] - data_2s_tst[,"K"]))
+mean(tst_tibble_w2$mae)
+```
+
+In this we define basket diff as basket price - strike price. Therefore a high basket diff means the call options is very out-of-the-money and a low basket diff is extremely in-the-money.
+
+```{r w2_tst_plot_1}
+    ggplot(data = tst_tibble_w2, aes(x = basketDiff, y = mae, alpha = .01)) +
+    geom_jitter()
+```
+
+```{r w2_tst_plot_3}
+ggplot(tst_tibble_w2 , aes(x = mae)) + 
+    geom_histogram(bins = 50)
+```
+
+```{r w2_tst_quantile}
+tst_errs = pull(tst_tibble_w2, mae)
+r_tst_inds = which(tst_errs > quantile(tst_errs, .75))
+r_tst_inds_2 = which(tst_errs > quantile(tst_errs, .9))
+r_tst_inds_3 = which(tst_errs > quantile(tst_errs, .825))
+quantile(tst_errs, c(.25, .5, .75, .9))
+```
+
+### Clear testing data
+
+```{r clear_testing_data}
+rm(data_2s_tst)
+rm(tst_2s_pred)
+rm(tst_2s_act)
+rm(tst_tibble)
+rm(tst_tibble_w2)
+# rm(tst_2s_pred)
+# rm(tst_2s_pred_w2)
+```
+
+## "Extrapolation"
+
+```{r extr-data-setup}
+data_2s = read.csv("Two_stock_European/data/two_stock_v2.csv")[,-1]
+sig1_r = range(data_2s[,"sig1"])
+sig2_r = range(data_2s[,"sig2"])
+cor_r = range(data_2s[,"cor"])
+r_r = range(data_2s[,"r"])
+K_r = range(data_2s[,"K"])
+w1_r = range(data_2s[,"w1"])
+# S1_r = range(data_2s[,"S1"])
+# S2_r = range(data_2s[,"S2"])
+rm(data_2s)
+```
+
+
+```{r extrap, eval=FALSE}
+set.seed(42)
+
+n_combos = 1
+
+oob_sig1 = runif(n_combos, sig1_r[1], sig1_r[2])
+oob_sig2 = runif(n_combos, sig2_r[1], sig2_r[2])
+oob_cor = runif(n_combos, cor_r[1], cor_r[2])
+oob_r = runif(n_combos, r_r[1], r_r[2])
+oob_K = runif(n_combos, K_r[1], K_r[2])
+oob_w = runif(n_combos, w1_r[1], w1_r[2])
+
+oob_vals = c(1.2, .01, .6, .063, 84, .03)
+
+oob_ds_size = 12000
+
+oob_ds = tibble(sig1 = rep(oob_sig1, oob_ds_size), sig2 = rep(oob_sig2, oob_ds_size), cor = rep(oob_cor, oob_ds_size), r = rep(oob_r, oob_ds_size), K = rep(oob_K, oob_ds_size), w1 = rep(oob_w, oob_ds_size), w2 = rep(1 - oob_w, oob_ds_size), S1 = rep(NA, oob_ds_size),
+                S2 = rep(NA, oob_ds_size), V = rep(NA, oob_ds_size))
+
+for (ind in 1:6){
+    oob_ds[((ind - 1) * 2000 + 1): (ind * 2000), ind] = rep(oob_vals[ind], 2000)
+    oob_ds[((ind - 1) * 2000 + 1): (ind * 2000), ] = 
+        fds_2s(sigma = c(oob_ds[[ind * 2000, 1]], oob_ds[[ind * 2000, 2]]), cor = oob_ds[[ind * 2000, 3]], r = oob_ds[[ind * 2000, 4]], K = oob_ds[[ind * 2000, 5]], 
+               weights = c(oob_ds[[ind * 2000, 6]], 1 - oob_ds[[ind * 2000, 6]]))
+}
+
+oob_ds_mat = as.matrix(oob_ds)
+
+oob_pred = basket_mod_w2 %>% predict(oob_ds_mat[, -10])
+oob_act = oob_ds_mat[, 10]
+
+plot(oob_pred, oob_act, main = "oob actual vs pred", xlab = "actual", ylab = "predicted")
+abline(0, 1, col = "red")
+
+oob_mae  = mean(abs(oob_pred - oob_act))
+oob_mae
+```
+

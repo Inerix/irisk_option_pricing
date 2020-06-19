@@ -9,7 +9,7 @@ f = lapply(pkg_list, function(p){
     }
 })
 
-source("fds_1_stock.R")
+source("Two_stock_European/fds_1_stock.R")
 
 # initial values
 
